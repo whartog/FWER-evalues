@@ -1,0 +1,249 @@
+---
+title: "Factorial Design"
+output: html_notebook
+---
+
+```{r}
+
+# delta, alpha_1, alpha_2, alpha_3, beta_12, beta_23, beta_13, gamma_123
+coeff = c(0.5, 0, 0.5, 0, 0, 0.5, 0)
+n = length(coeff)
+mu_alt = c(1:n) ** 0 * 0.5
+var = c(2, 2, 2, 4, 4, 4, 8)
+
+data_mean = function(coeff) {
+  # we'll take datapoints corresponding to which treatments are given
+  n = length(coeff)
+  data_mean = c(1:n)
+  for (j in c(1:3)) {
+    data_mean[j] = coeff[j]
+  }
+  for (j in c(4:6)) {
+    data_mean[j] = coeff[j - 3] + coeff[j]
+    if (j <= 5) {
+      data_mean[j] = data_mean[j] + coeff[j - 2]
+    }
+    else {
+      data_mean[j] = data_mean[j] + coeff[1]
+    }
+  }
+  data_mean[7] = sum(coeff)
+  
+  return(data_mean)
+}
+
+```
+
+## Helper Functions
+
+```{r}
+
+# helper functions for getting data and evals
+
+lr = function(x, mu, sigma_2) {
+  return(exp(mu * x/sigma_2 - 0.5 * mu ** 2 / sigma_2))
+}
+
+get_test_vals = function(data) {
+  error0 = rnorm(1)
+  vals = c(1:length(data))
+  vals[c(1:3)] = data[c(1:3)] - error0
+  for (j in c(4:6)) {
+    vals[j] = error0 - data[j - 3] + data[j]
+    if (j <= 5) {
+      vals[j] = vals[j] - data[j - 2]
+    }
+    else {
+      vals[j] = vals[j] - data[1]
+    }
+  }
+  vals[7] = data[7] - sum(data[c(4:6)]) + sum(data[c(1:3)]) - error0
+  return(vals)
+}
+
+eval_fact = function(data, mu_alt, var) {
+  eval = lr(get_test_vals(data), mu_alt, var)
+  return(eval)
+}
+
+```
+
+```{r}
+
+# creating a martingale for each coefficient
+mgale = c(1:n) ** 0
+
+num_iter = 100
+
+dm = data_mean(coeff)
+for (i in c(1:num_iter)) {
+  # assuming variances are all known to be 1
+  error = rnorm(n, 0, 1)
+  data = dm + error
+  mgale = mgale * eval_fact(data, mu_alt, var)
+}
+
+mgale
+
+```
+
+```{r}
+
+coeff = replicate(n, 0)
+
+num_iter = 1000
+num_trials = 10000
+
+errors = replicate(n, 0)
+for (i in c(1:num_iter)) {
+  mgale = 1 ** replicate(n, 0)
+  maxs = 1 ** replicate(n, 0)
+  for (j in c(1:num_trials)) {
+    # assuming variances are all known to be 1
+    error = rnorm(n, 0, 1)
+    data = coeff + error
+    mgale = mgale * eval_fact(data, mu_alt, var)
+    maxs = pmax(mgale, maxs)
+  }
+  errors = errors + (maxs > 20) / num_iter
+  print(i)
+}
+
+```
+
+# e-DAG
+
+```{r}
+
+library(toposort)
+
+dag_es = function(Adj, es, alphas) {
+  indices = topological_sort(Adj > 0, dependency_type = 'precedes')
+  n = length(indices)
+  
+  e_stars = es
+  e_opts = replicate(n, 0)
+  
+  for (i in c(1:n)) {
+    idx = indices[i]
+    e_star = alphas[idx]*es[idx]
+    e_opts[idx] = es[idx]
+    idx_q = which(Adj[,idx] > 0)
+    while (length(idx_q) > 0) {
+      idx_1 = idx_q[1]
+      idx_q = idx_q[-1]
+      e_comp = 
+      e_opt = min(es[idx_1], sum(sapply(e_opts * Adj[idx_1,], function(x) ifelse(is.nan(x),0,x))))
+      idx_q = unique(c(idx_q, which(Adj[,idx_1] > 0)))
+      e_star = e_star + alphas[idx_1] * e_opt
+    }
+    e_stars[idx] = e_star
+  }
+  
+  return(e_stars)
+}
+
+z = c(0, 0, 0)
+l = c(z, z, 1)
+Adj = t(matrix(c(z, 1/2, 0, 1/2, 0, z, 1/2, 1/2, 0, 0, z, 0, 1/2, 1/2, 0, l, l, l, replicate(7, 0)), nrow = 7, ncol = 7))
+
+alphas = c(replicate(3, 1/3), replicate(4, 0))
+#alphas = replicate(7, 1/7)
+
+```
+
+```{r}
+
+#a_eb = array(0, c(3, 3, 3, 1000))
+a_1.5 = array(0, c(3, 1000))
+
+mus = c(0.5, 1, 2)
+num_iter = 1000
+
+#for (i in c(1:3)) {
+#  for (j in c(1:3)) {
+    #coeff = c(mus[i], 0, mus[i], 0, 0, mus[j], 0)
+    coeff = c(0.5, 0, 0.5, 0, 0, 1.5, 0)
+    
+    dm = data_mean(coeff)
+    errors = replicate(n, 0)
+    for (k in c(1:num_iter)) {
+      mgale = 1 ** replicate(n, 0)
+      maxs = 1 ** replicate(n, 0)
+      t = 0
+      Te = Inf
+      Tp = Inf
+      Tep = Inf
+      num_max = 2000
+      # start off with known alternatives and unknown 13
+      mu_alt = coeff
+      mu_alt[6] = 0
+      
+      while (((Tep == Inf) | (Te == Inf)) & (t < num_max)) {
+        t = t + 1
+        # assuming variances are all known to be 1
+        error = rnorm(n, 0, 1)
+        data = dm + error
+        mgale = mgale * eval_fact(data, mu_alt, var)
+        maxs = pmax(mgale, maxs)
+        if ((1/maxs[6] < 0.05 * ((1/maxs[1] < 0.05/3)/6 + (1/maxs[3] < 0.05/3)/6)) & (Tp == Inf)) {
+          Tp = t
+        }
+        if ((1/mgale[6] < 0.05 * ((1/mgale[1] < 0.05/3)/6 + (1/mgale[3] < 0.05/3)/6)) & (Tep == Inf)) {
+          Tep = t
+        }
+        if ((dag_es(Adj, mgale, alphas)[6] > 20) & (Te == Inf)) {
+          Te = t
+        }
+        if (t > 10) {
+          s = t - 10
+          mu_alt[6] = mu_alt[6] * (s-1)/s + get_test_vals(data)[6] / s
+        }
+        
+      }
+      #a_eb[,i,j,k] = c(Te, Tp, Tep)
+      a_1.5[,k] = c(Te, Tp, Tep)
+    }
+#    print(3*(i-1) + j)
+#  }
+#}
+
+# have a prior on the coefficients, then redraw coefficients according to prior for each run
+# generalized likelihood ratio test
+
+```
+
+```{r}
+
+
+require(reshape2)
+a_1.5_df = melt(a_1.5)
+
+write.csv(a_1.5_df, 'Ts_data_1.5.csv')
+
+```
+
+```{r}
+
+a_less = matrix(0, nrow = 3, ncol = 3)
+a_greater = matrix(0, nrow = 3, ncol = 3)
+a_ratio = matrix(0, nrow = 3, ncol = 3)
+
+for (i in c(1:3)) {
+  for (j in c(1:3)) {
+    a_less[i,j] = mean(a[1,i,j,] < a[2,i,j,])
+    a_greater[i,j] = mean(a[1,i,j,] > a[2,i,j,])
+    a_ratio[i,j] = mean(a[1,i,j,] / a[2,i,j,])
+  }
+}
+
+print(a_less)
+print(a_greater)
+print(a_ratio)
+
+plot()
+
+```
+
+
+

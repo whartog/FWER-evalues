@@ -1,0 +1,227 @@
+---
+title: "e-dag Data Analysis"
+output: html_notebook
+---
+
+Var1: e, p, ep stopping times
+Var2: $\alpha_1=\alpha_3\in\{0.5,1,2\}$
+Var3: $\alpha_{13}\in\{0.5,1,2\}$
+Var4: Iteration number in [1000]
+
+## Loading Data
+
+```{r}
+
+a_df = read.csv('Ts_data.csv')
+
+require(dplyr)
+a_e = filter(a_df, Var1 == 1)
+a_p = filter(a_df, Var1 == 2)
+a_ep = filter(a_df, Var1 == 3)
+
+```
+
+```{r}
+
+mus = c('0.5', '1', '2')
+
+a_all = a_e[c('Var2', 'Var3', 'value')]
+colnames(a_all) = c('mu_primary', 'mu_secondary', 'T_e')
+a_all$T_p = a_p$value
+a_all$T_ep = a_ep$value
+a_all$less_p = a_all$T_e < a_all$T_p
+a_all$greater_p = a_all$T_e > a_all$T_p
+a_all$ratio_p = a_all$T_e / a_all$T_p
+a_all$less_ep = a_all$T_e < a_all$T_ep
+a_all$greater_ep = a_all$T_e > a_all$T_ep
+a_all$ratio_ep = a_all$T_e / a_all$T_ep
+a_agg = a_all %>% group_by(mu_primary, mu_secondary) %>% summarise_at(vars(T_e, less_p, greater_p, ratio_p, less_ep, greater_ep, ratio_ep), list(mean))
+
+a_agg$mu_primary = mus[a_agg$mu_primary]
+a_agg$mu_secondary = mus[a_agg$mu_secondary]
+
+```
+
+```{r}
+
+require(ggplot2)
+require(latex2exp)
+
+#ggplot(data = a_agg, aes(x = mu_primary, y = less_ep, color = mu_secondary)) + geom_point() + geom_line(aes(group = mu_secondary)) #+ geom_errorbar(aes(ymin=less_ep-1.96*sqrt(less_ep * (1-less_ep)) / sqrt(1000), ymax=less_ep+1.96*sqrt(less_ep * (1-less_ep)) / sqrt(1000)), width = 0.1) #+ geom_errorbar(aes(ymin=ratio_p-1.96*sd(ratio_p) / sqrt(1000), ymax=ratio_p+1.96*sd(ratio_p) / sqrt(1000)), width = 0.1)
+
+#ggplot(data = a_agg, aes(mu_primary, less_ep, fill = mu_secondary)) + geom_col(position = 'dodge')
+
+```
+
+## Doing plots with 1.5
+
+To do the plots with equal budget/primary budget, switch out Ts_data_equal_budget.csv for Ts_data.csv
+
+```{r}
+
+#a_df = read.csv('Ts_data.csv')
+a_df = read.csv('Ts_data_equal_budget.csv')
+
+require(dplyr)
+a_e = filter(a_df, Var1 == 1)
+a_p = filter(a_df, Var1 == 2)
+a_ep = filter(a_df, Var1 == 3)
+
+```
+
+```{r}
+
+mus = c('0.5', '1', '2')
+
+a_all = a_e[c('Var2', 'Var3', 'value')]
+colnames(a_all) = c('mu_primary', 'mu_secondary', 'T_e')
+a_all$T_p = a_p$value
+a_all$T_ep = a_ep$value
+a_all$less_p = a_all$T_e < a_all$T_p
+a_all$greater_p = a_all$T_e > a_all$T_p
+a_all$ratio_p = a_all$T_e / a_all$T_p
+a_all$less_ep = a_all$T_e < a_all$T_ep
+a_all$greater_ep = a_all$T_e > a_all$T_ep
+a_all$ratio_ep = a_all$T_e / a_all$T_ep
+a_agg = a_all %>% group_by(mu_primary, mu_secondary) %>% summarise_at(vars(T_e, less_p, greater_p, ratio_p, less_ep, greater_ep, ratio_ep), list(mean))
+
+a_agg$mu_primary = mus[a_agg$mu_primary]
+a_agg$mu_secondary = mus[a_agg$mu_secondary]
+
+```
+
+```{r}
+
+#a_1.5_df = read.csv('Ts_data_1.5.csv')
+a_1.5_df = read.csv('Ts_data_equal_budget_1.5.csv')
+
+#View(a_1.5_df)
+
+a_1.5_e = filter(a_1.5_df, Var1 == 1)
+a_1.5_p = filter(a_1.5_df, Var1 == 2)
+a_1.5_ep = filter(a_1.5_df, Var1 == 3)
+
+a_1.5_all = a_1.5_e['value']
+colnames(a_1.5_all) = c('T_e')
+a_1.5_all$T_p = a_1.5_p$value
+a_1.5_all$T_ep = a_1.5_ep$value
+a_1.5_all$less_p = a_1.5_all$T_e < a_1.5_all$T_p
+a_1.5_all$greater_p = a_1.5_all$T_e > a_1.5_all$T_p
+a_1.5_all$ratio_p = a_1.5_all$T_e / a_1.5_all$T_p
+a_1.5_all$less_ep = a_1.5_all$T_e < a_1.5_all$T_ep
+a_1.5_all$greater_ep = a_1.5_all$T_e > a_1.5_all$T_ep
+a_1.5_all$ratio_ep = a_1.5_all$T_e / a_1.5_all$T_ep
+
+#a_1.5_all$greater_ep
+
+#View(a_1.5_all)
+
+
+
+a_1.5_agg = a_1.5_all %>% summarise_at(vars(T_e, less_p, greater_p, ratio_p, less_ep, greater_ep, ratio_ep), list(mean))
+
+a_agg_0.5 = filter(a_agg, mu_primary == '0.5')[,-1]
+
+a_1.5_agg$mu_secondary = 1.5
+
+a_agg_0.5 = rbind(a_agg_0.5[1:2,],a_1.5_agg,a_agg_0.5[3,])
+
+#View(a_agg_0.5)
+
+p_same = 1 - (a_agg_0.5$less_p + a_agg_0.5$greater_p)
+a_agg_0.5$ntratio_p = (a_agg_0.5$ratio_p - p_same)/(1-p_same)
+#a_agg_0.5$ntratio_p
+
+a_agg_0.5$ntratio_ep = (a_agg_0.5$ratio_ep - 1 + a_agg_0.5$less_ep)/a_agg_0.5$less_ep
+#a_agg_0.5$ntratio_ep
+
+```
+
+Need to manually toggle between Comparison and Ratio, and manually replace Primary/Equal in graphs.
+
+```{r}
+
+require(ggplot2)
+require(tidyverse)
+require(reshape2)
+require(latex2exp)
+
+a_agg_0.5_full = melt(a_agg_0.5[c('mu_secondary', 'less_ep', 'less_p', 'greater_p')])
+#a_agg_0.5_full = melt(a_agg_0.5[c('mu_secondary', 'ntratio_p', 'ntratio_ep')])
+
+a_agg_0.5_full = a_agg_0.5_full %>% 
+  mutate(variable = str_replace(variable, 'less_ep', 'E < EP'), variable = str_replace(variable, 'less_p', 'E < P'), variable = str_replace(variable, 'greater_p', 'P < E'))
+
+#a_agg_0.5_full = a_agg_0.5_full %>% 
+#  mutate(variable = str_replace(variable, 'ntratio_ep', 'E/EP'), variable = str_replace(variable, 'ntratio_p', 'E/P'))
+
+colnames(a_agg_0.5_full)[2] = 'Comparison'
+#colnames(a_agg_0.5_full)[2] = 'Ratio'
+
+ggplot(data = a_agg_0.5_full, aes(mu_secondary, value, fill = Comparison)) + geom_col(position = 'dodge') + ggtitle(TeX('Equal Budget')) + ylab('Probability') + xlab(TeX('$\\mu_2$')) + theme(text = element_text(size = 15), plot.title = element_text(hjust = 0.5), legend.position='none')
+
+#ggplot(data = a_agg_0.5_full, aes(mu_secondary, value, fill = Ratio)) + geom_col(position = 'dodge') + ggtitle(TeX('DAG Ratios for $\\mu_1=0.5$ with Equal Budget')) + ylab('Average Ratio (When Unequal)') + xlab(TeX('$\\mu_2$')) + coord_cartesian(ylim=c(0.6,1.4)) #+ geom_hline(yintercept = 1)
+
+```
+
+## Analyzing e-holm data
+
+```{r}
+
+h_df = read.csv('Ts_data_holm.csv')
+
+require(dplyr)
+# i messed up the order of 1,2,3
+h_e = filter(h_df, Var1 == 3)
+h_p = filter(h_df, Var1 == 2)
+h_ep = filter(h_df, Var1 == 1)
+
+```
+
+```{r}
+
+mus = c('0.5', '1', '1.5', '2')
+
+h_all = h_e[c('Var2', 'value')]
+colnames(h_all) = c('mu_alt', 'T_e')
+h_all$T_p = h_p$value
+h_all$T_ep = h_ep$value
+h_all$less_p = h_all$T_e < h_all$T_p
+h_all$greater_p = h_all$T_e > h_all$T_p
+h_all$ratio_p = h_all$T_e / h_all$T_p
+h_all$less_ep = h_all$T_e < h_all$T_ep
+h_all$greater_ep = h_all$T_e > h_all$T_ep
+h_all$ratio_ep = h_all$T_e / h_all$T_ep
+h_agg = h_all %>% group_by(mu_alt) %>% summarise_at(vars(T_e, less_p, greater_p, ratio_p, less_ep, greater_ep, ratio_ep), list(mean))
+
+h_agg$mu_alt = mus[h_agg$mu_alt]
+
+p_same = 1 - (h_agg$less_p + h_agg$greater_p)
+h_agg$ntratio_p = (h_agg$ratio_p - p_same)/(1-p_same)
+h_agg$ntratio_p
+
+```
+
+```{r}
+
+#h_agg_full = melt(h_agg[c('mu_alt', 'less_p')])
+h_agg_full = melt(h_agg[c('mu_alt', 'ntratio_p')])
+
+require(tidyverse)
+
+#h_agg_full = h_agg_full %>% 
+#  mutate(variable = str_replace(variable, 'less_p', 'E < P'))
+
+h_agg_full = h_agg_full %>% 
+  mutate(variable = str_replace(variable, 'ntratio_p', 'E/P'))
+
+#colnames(h_agg_full)[2] = 'Comparison'
+colnames(h_agg_full)[2] = 'Ratio'
+
+#ggplot(data = h_agg_full, aes(mu_alt, value, fill = Comparison)) + geom_col(position = 'dodge') + ggtitle(TeX('Holm Comparisons for $n=20,n_{alt}=5$')) + ylab('Probability') + xlab(TeX('$\\mu_{alt}$'))
+
+ggplot(data = h_agg_full, aes(mu_alt, value, fill = Ratio)) + geom_col(position = 'dodge') + ggtitle(TeX('Holm Ratios for $n=20,n_{alt}=5$')) + ylab('Average Ratio (When Unequal)') + xlab(TeX('$\\mu_{alt}$')) + coord_cartesian(ylim=c(0.6,1)) #+ geom_hline(yintercept = 1)
+
+```
+
+

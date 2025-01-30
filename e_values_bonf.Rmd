@@ -1,0 +1,189 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+# assumed to be sorted
+pholm = function(pvals) {
+  n = length(pvals)
+  adjustedpvals = c(1:n)
+  for (i in (1:n)) {
+    pi = 0
+    for (j in (1:i)) {
+      pij = (n - j + 1) * pvals[j]
+      if (pij > pi) {
+        pi = pij
+      }
+    }
+    adjustedpvals[i] = min(1, pi)
+  }
+  return(adjustedpvals)
+}
+
+pvals = c(0.1,0.2,0.3,0.4)
+pholm(pvals)
+
+```
+
+```{r}
+
+eholm = function(evals) {
+  n = length(evals)
+  adjustedevals = c(1:n)
+  e = evals[n]
+  adjustedevals[n] = e
+  e = (e+evals[n-1])/2
+  adjustedevals[n-1] = e
+  k = 1
+  for (r in (2:n-1)) {
+    i = n - r
+    e = e + (evals[i] - evals[i + 1])/(k+1)
+    while (e > evals[n - k]) {
+      e = (1 + k) * e / (2 + k) + evals[n - k]/(2+k)
+      k = k + 1
+      if (k == n) {break}
+    }
+    adjustedevals[i] = e
+  }
+  return(adjustedevals)
+}
+
+#evals = c(100, 20, 10, 1)
+#eholm(evals)
+
+```
+
+```{r}
+
+library(rlist)
+library(ff)
+library(DescTools)
+
+
+get_times = function(hyp = 20, nalt = 5, mu_alt = 0.5, num_to_rej = 1) {
+
+  # K is number of rejections before stopping
+  K = num_to_rej
+  
+  T_p = Inf
+  T_ep = Inf
+  T_e = Inf
+  
+  mgale = c(1:hyp) ** 0
+  max = c(1:hyp) ** 0
+  
+  adj_evals = data.frame(matrix(ncol = hyp, nrow = 0))
+  adj_epvals = data.frame(matrix(ncol = hyp, nrow = 0))
+  adj_pvals = data.frame(matrix(ncol = hyp, nrow = 0))
+  for (i in c(1:100)) {
+    alts = rnorm(nalt, mu_alt, 1)
+    nulls = rnorm(hyp - nalt, 0, 1)
+    xs = append(alts, nulls)
+    mgale = mgale * exp(mu_alt * xs - 0.5 * mu_alt ** 2)
+    max = pmax(mgale, max)
+    
+    pvals = sort(1/max, index.return = TRUE)
+    evals = sort(mgale, index.return = TRUE, decreasing = TRUE)
+    
+    apvals = pholm(pvals$x)
+    aepvals = pholm(1/evals$x)
+    aevals = eholm(evals$x)
+    adj_evals[i,] = unsort(aevals, evals$ix)
+    adj_epvals[i,] = unsort(aepvals, evals$ix)
+    adj_pvals[i,] = unsort(apvals, pvals$ix)
+    
+    # check if the Kth p/e-value is significant
+    if (Small(apvals, K)[K] < 0.05 & T_p == Inf) {
+      T_p = i
+    }
+    if (Small(aepvals, K)[K] < 0.05 & T_ep == Inf) {
+      T_ep = i
+    }
+    if (Large(aevals, K)[1] > 20 & T_e == Inf) {
+      T_e = i
+    }
+    
+  }
+  return(c(T_e, T_p, T_ep))
+
+}
+```
+
+```{r}
+
+get_hist = function(nalt = 5, mu_alt = 0.5, K = 1) {
+
+  num_iter = 1000
+  
+  T_ps = c(1:num_iter) ** 0
+  T_es = c(1:num_iter) ** 0
+  
+  for (i in c(1:num_iter)) {
+    lst = get_times(mu_alt = mu_alt, num_to_rej = K)
+    T_ps[i] = lst[2]
+    T_es[i] = lst[1]
+    print(i)
+  }
+  
+  hist(T_es/T_ps)
+  sprintf('The percentage of time e-Holm improves on p-Holm is %s \\ The percentage of time e-Holm is worse than p-Holm is %s \\ The mean improvement in stopping time is %s', mean(T_es/T_ps < 1), mean(T_es/T_ps > 1), mean(T_es/T_ps))
+
+}
+
+get_hist(nalt = 10, mu_alt = 1, K = 1)
+
+#sprintf('The percentage of time e-Holm improves on p-Holm is %s', mean(T_es/T_ps < 1))
+#  sprintf('The percentage of time e-Holm is worse than p-Holm is %s', mean(T_es/T_ps > 1))
+#  sprintf('The mean improvement in stopping time is %s', mean(T_es/T_ps))
+
+```
+
+```{r}
+
+library(DescTools)
+
+a = c(1,2,3)
+
+Large(a, 2)[2]
+
+```
+
+```{r}
+
+library(ggplot2)
+
+ggplot() + geom_line(data = adj_evals, aes(x = 1:nrow(adj_evals), y = adj_evals[,1], color = 'blue')) + geom_line(data = adj_epvals, aes(x = 1:nrow(adj_epvals), y = 1/adj_epvals[,1], color = 'red')) + geom_line(data = adj_pvals, aes(x = 1:nrow(adj_pvals), y = 1/adj_pvals[,1], color = 'green'))
+  
+ggplot() + geom_line(data = adj_evals, aes(x = 1:nrow(adj_evals), y = adj_evals[,2], color = 'blue')) + geom_line(data = adj_epvals, aes(x = 1:nrow(adj_epvals), y = 1/adj_epvals[,2], color = 'red')) + geom_line(data = adj_pvals, aes(x = 1:nrow(adj_pvals), y = 1/adj_pvals[,2], color = 'green'))
+
+ggplot() + geom_line(data = adj_evals, aes(x = 1:nrow(adj_evals), y = adj_evals[,3], color = 'blue')) + geom_line(data = adj_epvals, aes(x = 1:nrow(adj_epvals), y = 1/adj_epvals[,3], color = 'red')) + geom_line(data = adj_pvals, aes(x = 1:nrow(adj_pvals), y = 1/adj_pvals[,3], color = 'green'))
+
+ggplot() + geom_line(data = adj_evals, aes(x = 1:nrow(adj_evals), y = adj_evals[,4], color = 'blue')) + geom_line(data = adj_epvals, aes(x = 1:nrow(adj_epvals), y = 1/adj_epvals[,4], color = 'red')) + geom_line(data = adj_pvals, aes(x = 1:nrow(adj_pvals), y = 1/adj_pvals[,4], color = 'green'))
+
+ggplot() + geom_line(data = adj_evals, aes(x = 1:nrow(adj_evals), y = adj_evals[,5], color = 'blue')) + geom_line(data = adj_epvals, aes(x = 1:nrow(adj_epvals), y = 1/adj_epvals[,5], color = 'red')) + geom_line(data = adj_pvals, aes(x = 1:nrow(adj_pvals), y = 1/adj_pvals[,5], color = 'green'))
+
+```
+
+```{r}
+
+mus = c(0.5, 1, 1.5, 2)
+
+h = array(0, c(3, 4, 1000))
+
+for (i in c(1:4)) {
+  mu = mus[i]
+  for (k in c(1:1000)) {
+    h[,i,k] = get_times(mu_alt = mu, num_to_rej = 2)
+  }
+}
+
+require(reshape2)
+h_df = melt(h)
+
+write.csv(h_df, 'Ts_data_holm.csv')
+
+
+
+```
